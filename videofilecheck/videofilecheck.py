@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import subprocess
 from time import time, sleep
 from os import walk, chdir
 from os.path import join, expanduser, relpath, abspath, getsize
@@ -10,10 +9,13 @@ import argparse
 from tqdm import tqdm
 
 from .lib.database import Database
+from .lib.ffmpeg import ffmpeg_no_errors
 
 import logging
-FORMAT = '%(asctime)-15s [%(name)s] [%(levelname)s] %(message)s'
-logging.basicConfig(format=FORMAT)
+logging.basicConfig(
+    format='%(asctime)s [%(name)s]\t[%(levelname)s]\t%(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 log = logging.getLogger(__name__)
 
 
@@ -80,12 +82,6 @@ class App:
         log.debug("Hash of %s is %s" % (file, hexdigest))
         return hexdigest
 
-    def run_ffmpeg(self, file):
-        log.debug("Running ffmpeg for \"%s\"" % file)
-        ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", file, "-f", "null", "-"]
-        output = subprocess.check_output(ffmpeg_call, stderr=subprocess.STDOUT)
-        return output
-
     def worker(self, videofile):
         try:
             if self.path_only:
@@ -100,8 +96,7 @@ class App:
                 db_result = None
 
             if db_result is None:
-                output = self.run_ffmpeg(videofile)
-                sucess = len(output) == 0
+                sucess = ffmpeg_no_errors(videofile)
                 if md5sum is None:
                     md5sum = self.calculate_md5(videofile)
                 self.store_result_to_db(videofile, md5sum, sucess)
@@ -109,9 +104,9 @@ class App:
             else:
                 log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
                 return (videofile, db_result)
-        except Exception as e:
+        except Exception:
             import traceback
-            traceback.print_exception(e)
+            traceback.print_exc()
 
     def scan(self, videodir, force=False):
         """Scan videofiles in videodir recursively. Ignore existing results if force is set"""
@@ -131,7 +126,7 @@ class App:
 
             progress = passthrough if self.verbose else tqdm
             for future in progress(as_completed(futures), total=len(vfiles)):
-                sleep(0.01)  # TQDM doesnt update without a very short sleep :/
+                sleep(0.001)  # TQDM doesnt update without a very short sleep :/
                 if future.exception() is not None:
                     log.error(future.exception())
                     continue
