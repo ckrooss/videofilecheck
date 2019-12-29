@@ -12,13 +12,13 @@ DEFAULT_CONTENT = {"files": {}}
 
 class Database:
     def __init__(self, dbpath):
-        log.info("dbpath is %s" % dbpath)
+        log.debug("dbpath is %s" % dbpath)
         self.dbpath = dbpath
 
         if exists(self.dbpath):
             with open(self.dbpath, "rt", encoding="utf-8") as f:
                 self.data = json.load(f)
-                log.info("Loading existing database with %s entries" % len(self.data["files"].keys()))
+                log.debug("Loading existing database with %s entries" % len(self.data["files"].keys()))
         else:
             log.info("Creating new database")
             self.data = DEFAULT_CONTENT
@@ -33,19 +33,30 @@ class Database:
 
         move(tmp, self.dbpath)
 
-    def set(self, videofile, md5sum, status):
-        self.data["files"][videofile] = dict(videofile=videofile, hash=md5sum, status=status)
+    def set(self, entry):
+        self.data["files"][entry["videofile"]] = entry
 
-    def get(self, videofile, md5sum=None):
+    def get(self, videofile, md5sum=None, filesize=None):
+        if md5sum is None and filesize is None:
+            log.error("Database.get needs either a hash or a filesize to identify files!")
+            raise Exception("Database.get needs either a hash or a filesize to identify files!")
+
         if videofile in self.data["files"]:
             vfile = self.data["files"][videofile]
 
-            if md5sum is None or vfile["hash"] == md5sum:
+            if "filesize" not in vfile and filesize is not None:
+                log.warn("Migration: setting filesize of %s to %s" % (videofile, filesize))
+                vfile["filesize"] = filesize
+
+            if filesize is None and vfile["hash"] == md5sum:
                 return vfile["status"]
-            else:
-                log.warning("Hash of file: %s has changed!" % videofile)
+            elif md5sum is None and vfile["filesize"] == filesize:
+                return vfile["status"]
 
         return None
+
+    def delete(self, videofile):
+        del self.data["files"][videofile]
 
     def get_all(self):
         return self.data["files"].items()

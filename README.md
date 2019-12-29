@@ -37,7 +37,7 @@ FAILED seriesA/S01E02.mkv
 usage: vcheck [-h] [-n NTHREADS] [-d DBPATH] [-o OUTPUT] [-f] [-p] [-v | -q] command videodir
 
 positional arguments:
-  command               Subcommand to run: scan, show
+  command               Subcommand to run: scan, rescan, show
   videodir              Directory that will be recursively scanned
 
 optional arguments:
