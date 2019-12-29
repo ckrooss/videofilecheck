@@ -67,7 +67,18 @@ class App:
     def calculate_md5(self, file):
         log.debug("Calculating md5 of %s" % file)
         with open(file, "rb") as f:
-            return md5(f.read()).hexdigest()
+            file_hash = md5()
+
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+
+                file_hash.update(chunk)
+
+        hexdigest = file_hash.hexdigest()
+        log.debug("Hash of %s is %s" % (file, hexdigest))
+        return hexdigest
 
     def run_ffmpeg(self, file):
         log.debug("Running ffmpeg for \"%s\"" % file)
@@ -96,7 +107,7 @@ class App:
                 self.store_result_to_db(videofile, md5sum, sucess)
                 return (videofile, sucess)
             else:
-                log.debug("Found \"%s\" in db, hash matches, using old status %s" % (videofile, db_result))
+                log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
                 return (videofile, db_result)
         except Exception as e:
             import traceback
@@ -131,6 +142,8 @@ class App:
 
             for vfile in failed:
                 log.warning("FAILED: %s" % vfile)
+
+            self.db.flush()
 
     def rescan(self, videodir):
         """Rescan all files in videodir that have a previous status of FAILED"""
