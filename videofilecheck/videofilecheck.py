@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 class App:
     def __init__(self, config):
         self.nthreads = config.nthreads if config.nthreads is not None else 2
-        self.dbpath = abspath(expanduser(config.dbpath) if config.dbpath is not None else expanduser("~/.check_files.json"))
+        self.dbpath = abspath(expanduser(config.dbpath) if config.dbpath is not None else expanduser("~/.vcheck.json"))
         self.db = Database(self.dbpath)
         self.output = abspath(config.output if config.output is not None else "results.txt")
         self.force_rescan = config.force_rescan if config.force_rescan is not None else False
@@ -93,7 +93,7 @@ class App:
 
     def scan(self, videodir, force=False):
         chdir(videodir)
-        vfiles = self.find_video_files(videodir)
+        vfiles = self.find_video_files(".")
         log.info("Found %s videofiles in total" % len(vfiles))
 
         with Executor(max_workers=self.nthreads) as exe:
@@ -115,10 +115,10 @@ class App:
 
 def cli():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', help='Subcommand to run: scan, rescan')
+    parser.add_argument('command', help='Subcommand to run: scan, show')
     parser.add_argument('videodir', help='Directory that will be recursively scanned')
     parser.add_argument('-n', "--nthreads", help='Number of threads to run in parallel (Default: 2)')
-    parser.add_argument('-d', "--dbpath", help='Database path to use to store results (Default: ~/.check_files.json)')
+    parser.add_argument('-d', "--dbpath", help='Database path to use to store results (Default: ~/.vcheck.json)')
     parser.add_argument('-o', "--output", help='Output textfile to store the human readable results (Default: ./results.txt)')
     parser.add_argument('-f', "--force-rescan", help='Rescan every file, even if it has been scanned before (Default: No)', action='store_true')
     parser.add_argument('-p', "--path-only", help='Only scan files using their path, skip hashing file content (Default: No)', action='store_true')
