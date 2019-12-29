@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/ckrooss/videofilecheck.svg?branch=master)](https://travis-ci.org/ckrooss/videofilecheck)
 # Video File Check
 Checks video files for errors and records results. Supports continuing a canceled scan and
 partial scans for updated files.
