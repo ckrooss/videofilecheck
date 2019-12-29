@@ -76,27 +76,31 @@ class App:
         return output
 
     def worker(self, videofile):
-        if self.path_only:
-            md5sum = None
-        else:
-            md5sum = self.calculate_md5(videofile)
-
-        db_result = self.db.get(videofile, md5sum, getsize(videofile))
-
-        if self.force_rescan:
-            log.debug("Forcing a rescan for \"%s\"" % videofile)
-            db_result = None
-
-        if db_result is None:
-            output = self.run_ffmpeg(videofile)
-            sucess = len(output) == 0
-            if md5sum is None:
+        try:
+            if self.path_only:
+                md5sum = None
+            else:
                 md5sum = self.calculate_md5(videofile)
-            self.store_result_to_db(videofile, md5sum, sucess)
-            return (videofile, sucess)
-        else:
-            log.debug("Found \"%s\" in db, hash matches, using old status %s" % (videofile, db_result))
-            return (videofile, db_result)
+
+            db_result = self.db.get(videofile, md5sum, getsize(videofile))
+
+            if self.force_rescan:
+                log.debug("Forcing a rescan for \"%s\"" % videofile)
+                db_result = None
+
+            if db_result is None:
+                output = self.run_ffmpeg(videofile)
+                sucess = len(output) == 0
+                if md5sum is None:
+                    md5sum = self.calculate_md5(videofile)
+                self.store_result_to_db(videofile, md5sum, sucess)
+                return (videofile, sucess)
+            else:
+                log.debug("Found \"%s\" in db, hash matches, using old status %s" % (videofile, db_result))
+                return (videofile, db_result)
+        except Exception as e:
+            import traceback
+            traceback.print_exception(e)
 
     def scan(self, videodir, force=False):
         """Scan videofiles in videodir recursively. Ignore existing results if force is set"""
@@ -116,7 +120,7 @@ class App:
 
             progress = passthrough if self.verbose else tqdm
             for future in progress(as_completed(futures), total=len(vfiles)):
-                sleep(0.01) ## TQDM doesnt update without a very short sleep :/
+                sleep(0.01)  # TQDM doesnt update without a very short sleep :/
                 if future.exception() is not None:
                     log.error(future.exception())
                     continue

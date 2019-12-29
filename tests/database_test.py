@@ -33,18 +33,24 @@ def test_db_default_content(dbpath):
 
 def test_db_set_get(dbpath):
     db = Database(dbpath)
-    db.set("a/b", "hashsum", False)
-    db.set("a/c", "hashsum2", True)
+    db.set(dict(videofile="a/b", hash="hashsum", filesize=1, status=False))
+    db.set(dict(videofile="a/c", hash="hashsum2", filesize=2, status=True))
     assert(len(db.get_all()) == 2)
 
     assert(db.get("a/b", "hashsum") is False)
     assert(db.get("a/c", "hashsum2") is True)
 
-    assert(db.get("a/b", None) is False)
-    assert(db.get("a/c", None) is True)
+    assert(db.get("a/b", "hashsum", 1) is False)
+    assert(db.get("a/c", "hashsum2", 2) is True)
 
-    assert(db.get("a/b", "wronghash") is None)
-    assert(db.get("a/c", "wronghash") is None)
+    assert(db.get("a/b", None, 1) is False)
+    assert(db.get("a/c", None, 2) is True)
 
-    assert(db.get("wrongfile", "hashsum") is None)
-    assert(db.get("wrongfile", "hashsum2") is None)
+    assert(db.get("a/b", "wronghash", 1) is None)
+    assert(db.get("a/c", "wronghash", 2) is None)
+
+    assert(db.get("wrongfile", "hashsum", 1) is None)
+    assert(db.get("wrongfile", "hashsum2", 2) is None)
+
+    assert(db.get("a/b", "hashsum", 99) is None)
+    assert(db.get("a/c", "hashsum2", 99) is None)
