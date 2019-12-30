@@ -13,7 +13,7 @@ from .lib.ffmpeg import ffmpeg_no_errors
 
 import logging
 logging.basicConfig(
-    format='%(asctime)s [%(name)s]\t[%(levelname)s]\t%(message)s',
+    format='%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 log = logging.getLogger(__name__)
