@@ -155,29 +155,33 @@ class App:
         self.scan(videodir)
 
     def show(self):
+        print("Broken Files:")
         for _, entry in self.db.get_all():
             if(entry["status"] is False):
-                print("%s: %s" % (entry["videofile"], entry["status"]))
+                print(entry["videofile"])
 
 
 def cli():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', help='Subcommand to run: scan, rescan, show')
-    parser.add_argument('videodir', help='Directory that will be recursively scanned')
-    parser.add_argument('-n', "--nthreads", help='Number of threads to run in parallel (Default: 2)')
-    parser.add_argument('-d', "--dbpath", help='Database path to use to store results (Default: ~/.vcheck.json)')
-    parser.add_argument('-f', "--force-rescan", help='Rescan every file, even if it has been scanned before (Default: No)', action='store_true')
-    parser.add_argument('-p', "--path-only", help='Only scan files using their path, skip hashing file content (Default: No)', action='store_true')
-    verb = parser.add_mutually_exclusive_group()
-    verb.add_argument("-v", "--verbose", help="log more", action='store_true')
-    verb.add_argument("-q", "--quiet", help="log less", action='store_true')
+    subparsers = parser.add_subparsers(title="command", help='Command', dest="command")
+    scanning_parsers = subparsers.add_parser("scan"), subparsers.add_parser("rescan")
+    all_parsers = *scanning_parsers, subparsers.add_parser("show")
+
+    for p in scanning_parsers:
+        p.add_argument('videodir', help='Directory that will be recursively scanned')
+
+    for p in all_parsers:
+        p.add_argument("-v", "--verbose", help="log more", action='store_true')
+        p.add_argument('-n', "--nthreads", help='Number of threads to run in parallel (Default: 2)')
+        p.add_argument('-d', "--dbpath", help='Database path to use to store results (Default: ~/.vcheck.json)')
+        p.add_argument('-f', "--force-rescan", help='Rescan every file, even if it has been scanned before (Default: No)', action='store_true')
+        p.add_argument('-p', "--path-only", help='Only scan files using their path, skip hashing file content (Default: No)', action='store_true')
+
     args = parser.parse_args()
 
     baselogger = logging.getLogger("videofilecheck")
     if args.verbose:
         baselogger.setLevel(logging.DEBUG)
-    elif args.quiet:
-        baselogger.setLevel(logging.WARN)
     else:
         baselogger.setLevel(logging.INFO)
 
@@ -190,7 +194,7 @@ def cli():
         log.info("Running rescan on video directory %s" % args.videodir)
         app.rescan(args.videodir)
     elif args.command == "show":
-        log.info("Showing results for video directory %s" % args.videodir)
+        log.info("Showing results")
         app.show()
     else:
         parser.print_usage()

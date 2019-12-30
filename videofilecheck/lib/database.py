@@ -64,6 +64,12 @@ class Database:
             size_match = (filesize is None or vfile["filesize"] == filesize)
             hash_match = (md5sum is None or vfile["hash"] == md5sum)
 
+            if filesize is not None and vfile["filesize"] != filesize:
+                log.debug("Size mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["filesize"], filesize))
+
+            if md5sum is not None and vfile["hash"] != md5sum:
+                log.debug("Hash mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["hash"], md5sum))
+
             if size_match and hash_match:
                 return vfile["status"]
 
