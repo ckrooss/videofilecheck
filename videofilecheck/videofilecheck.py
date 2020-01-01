@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor as Executor, as_completed
 from hashlib import md5
 import argparse
 from tqdm import tqdm
+from threading import get_ident, Lock
 
 from .lib.database import Database
 from .lib.ffmpeg import ffmpeg_no_errors
@@ -27,9 +28,20 @@ class App:
         self.force_rescan = config.force_rescan if config.force_rescan is not None else False
         self.path_only = config.path_only if config.path_only is not None else False
         self.verbose = True if config.verbose else False
+        self.worker_ids = []
+        self.lock = Lock()
 
         log.debug("Settings: nthreads=%s dbpath=%s force_rescan=%s path_only=%s"
                   % (self.nthreads, self.dbpath, self.force_rescan, self.path_only))
+
+    def get_worker_idx(self):
+        thread_id = get_ident()
+
+        with self.lock:
+            if thread_id not in self.worker_ids:
+                self.worker_ids.append(thread_id)
+
+        return self.worker_ids.index(thread_id) + 1
 
     def find_video_files(self, rootdir):
         videofiles = []
@@ -66,13 +78,23 @@ class App:
         self.db.set(entry)
         self.db.flush()
 
-    def calculate_md5(self, file):
+    def calculate_md5(self, file, bar=None):
         log.debug("Calculating md5 of %s" % file)
         with open(file, "rb") as f:
-            file_hash = md5()
+            if bar is not None:
+                f.seek(0, 2)
+                filesize = f.tell()
+                f.seek(0)
+                file_hash = md5()
+                bar.total = filesize
+                bar.unit = "B"
+                bar.unit_scale = True
 
             while True:
                 chunk = f.read(8192)
+                if bar is not None:
+                    bar.update(len(chunk))
+
                 if not chunk:
                     break
 
@@ -84,26 +106,29 @@ class App:
 
     def worker(self, videofile):
         try:
-            if self.path_only:
-                md5sum = None
-            else:
-                md5sum = self.calculate_md5(videofile)
+            worker_idx = self.get_worker_idx()
 
-            db_result = self.db.get(videofile, md5sum, getsize(videofile))
+            with tqdm(desc="Thread #%s - %s" % (worker_idx, videofile.split("/")[-1]), position=worker_idx, leave=False) as bar:
+                if self.path_only:
+                    md5sum = None
+                else:
+                    md5sum = self.calculate_md5(videofile, bar)
 
-            if self.force_rescan:
-                log.debug("Forcing a rescan for \"%s\"" % videofile)
-                db_result = None
+                db_result = self.db.get(videofile, md5sum, getsize(videofile))
 
-            if db_result is None:
-                sucess = ffmpeg_no_errors(videofile)
-                if md5sum is None:
-                    md5sum = self.calculate_md5(videofile)
-                self.store_result_to_db(videofile, md5sum, sucess)
-                return (videofile, sucess)
-            else:
-                log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
-                return (videofile, db_result)
+                if self.force_rescan:
+                    log.debug("Forcing a rescan for \"%s\"" % videofile)
+                    db_result = None
+
+                if db_result is None:
+                    sucess = ffmpeg_no_errors(videofile)
+                    if md5sum is None:
+                        md5sum = self.calculate_md5(videofile, bar)
+                    self.store_result_to_db(videofile, md5sum, sucess)
+                    return (videofile, sucess)
+                else:
+                    log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
+                    return (videofile, db_result)
         except Exception:
             import traceback
             traceback.print_exc()
