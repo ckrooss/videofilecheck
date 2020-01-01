@@ -120,12 +120,7 @@ class App:
 
             failed = []
 
-            # Use an empty lambda as a progress-bar in verbose mode to prevent ugly console output
-            def passthrough(iterable, total):
-                return iterable
-
-            progress = passthrough if self.verbose else tqdm
-            for future in progress(as_completed(futures), total=len(vfiles)):
+            for future in tqdm(as_completed(futures), total=len(vfiles), disable=self.verbose, unit="file"):
                 sleep(0.001)  # TQDM doesnt update without a very short sleep :/
                 if future.exception() is not None:
                     log.error(future.exception())
