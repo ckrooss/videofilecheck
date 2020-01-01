@@ -33,7 +33,7 @@ def remove_ignored_stuff(data: str) -> str:
 
 def ffmpeg_no_errors(file):
     log.debug("Running ffmpeg for \"%s\"" % file)
-    ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", file, "-f", "null", "-"]
+    ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", file, "-max_muxing_queue_size", "400", "-f", "null", "-"]
     output = subprocess.check_output(ffmpeg_call, stderr=subprocess.STDOUT)
     output = output.decode("utf-8")
     output = remove_ignored_stuff(output)
