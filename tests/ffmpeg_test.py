@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from videofilecheck.lib.ffmpeg import ffmpeg_no_errors, remove_ignored_stuff
+from videofilecheck.lib.ffmpeg import remove_ignored_stuff
 
 
 def test_nothing_ignored():

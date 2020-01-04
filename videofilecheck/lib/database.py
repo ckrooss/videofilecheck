@@ -49,29 +49,30 @@ class Database:
         self.data["files"][entry["videofile"]] = entry
 
     @locked
-    def get(self, videofile, md5sum=None, filesize=None):
-        if md5sum is None and filesize is None:
-            log.error("Database.get needs either a hash or a filesize to identify files!")
-            raise Exception("Database.get needs either a hash or a filesize to identify files!")
+    def get(self, videofile, filehash=None, filesize=None):
+        if videofile not in self.data["files"]:
+            return None
 
-        if videofile in self.data["files"]:
-            vfile = self.data["files"][videofile]
+        vfile = self.data["files"][videofile]
 
-            if "filesize" not in vfile and filesize is not None:
-                log.warn("Migration: setting filesize of %s to %s" % (videofile, filesize))
-                vfile["filesize"] = filesize
+        if filehash is None and filesize is None:
+            return vfile["status"]
 
-            size_match = (filesize is None or vfile["filesize"] == filesize)
-            hash_match = (md5sum is None or vfile["hash"] == md5sum)
+        if "filesize" not in vfile and filesize is not None:
+            log.warn("Migration: setting filesize of %s to %s" % (videofile, filesize))
+            vfile["filesize"] = filesize
 
-            if filesize is not None and vfile["filesize"] != filesize:
-                log.debug("Size mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["filesize"], filesize))
+        size_match = (filesize is None or vfile["filesize"] == filesize)
+        hash_match = (filehash is None or vfile["hash"] == filehash)
 
-            if md5sum is not None and vfile["hash"] != md5sum:
-                log.debug("Hash mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["hash"], md5sum))
+        if filesize is not None and vfile["filesize"] != filesize:
+            log.debug("Size mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["filesize"], filesize))
 
-            if size_match and hash_match:
-                return vfile["status"]
+        if filehash is not None and vfile["hash"] != filehash:
+            log.debug("Hash mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["hash"], filehash))
+
+        if size_match and hash_match:
+            return vfile["status"]
 
         return None
 

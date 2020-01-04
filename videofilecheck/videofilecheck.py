@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 from time import time, sleep
 from os import walk, chdir
-from os.path import join, expanduser, relpath, abspath, getsize
+from os.path import join, expanduser, relpath, abspath, getsize, isfile
 from concurrent.futures import ThreadPoolExecutor as Executor, as_completed
-from hashlib import md5
 import argparse
 from tqdm import tqdm
 from threading import get_ident, Lock
 
 from .lib.database import Database
-from .lib.ffmpeg import ffmpeg_no_errors
+from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
+from .lib.checksum import checksum
 
 import logging
 logging.basicConfig(
@@ -18,6 +18,8 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 log = logging.getLogger(__name__)
+
+WANTED_FILES = [".mkv", ".mp4", ".avi"]
 
 
 class App:
@@ -49,9 +51,7 @@ class App:
         for root, subdirs, files in walk(rootdir):
 
             for file in files:
-                if any([file.endswith(".mkv"),
-                        file.endswith(".mp4"),
-                        file.endswith(".avi")]):
+                if any(file.endswith(ext) for ext in WANTED_FILES):
                     videofiles.append(join(root, file))
                 else:
                     continue
@@ -68,9 +68,9 @@ class App:
         videofiles = sorted([relpath(p, rootdir) for p in videofiles])
         return videofiles
 
-    def store_result_to_db(self, videofile, md5sum, status):
+    def store_result_to_db(self, videofile, filehash, status):
         entry = dict(videofile=videofile,
-                     hash=md5sum,
+                     hash=filehash,
                      status=status,
                      timestamp=int(time()),
                      filesize=getsize(videofile))
@@ -78,54 +78,29 @@ class App:
         self.db.set(entry)
         self.db.flush()
 
-    def calculate_md5(self, file, bar=None):
-        log.debug("Calculating md5 of %s" % file)
-        with open(file, "rb") as f:
-            if bar is not None:
-                f.seek(0, 2)
-                filesize = f.tell()
-                f.seek(0)
-                file_hash = md5()
-                bar.total = filesize
-                bar.unit = "B"
-                bar.unit_scale = True
-
-            while True:
-                chunk = f.read(8192)
-                if bar is not None:
-                    bar.update(len(chunk))
-
-                if not chunk:
-                    break
-
-                file_hash.update(chunk)
-
-        hexdigest = file_hash.hexdigest()
-        log.debug("Hash of %s is %s" % (file, hexdigest))
-        return hexdigest
-
     def worker(self, videofile):
         try:
             worker_idx = self.get_worker_idx()
 
-            with tqdm(desc="Thread #%s - %s" % (worker_idx, videofile.split("/")[-1]), position=worker_idx, leave=False) as bar:
+            thread_title = "Thread #%s - %s" % (worker_idx, videofile.split("/")[-1])
+            with tqdm(desc=thread_title, position=worker_idx, leave=False, disable=self.verbose) as bar:
                 if self.path_only:
-                    md5sum = None
+                    filehash = None
                 else:
-                    md5sum = self.calculate_md5(videofile, bar)
+                    filehash = checksum(videofile, bar=bar)
 
-                db_result = self.db.get(videofile, md5sum, getsize(videofile))
+                db_result = self.db.get(videofile, filehash, getsize(videofile))
 
                 if self.force_rescan:
                     log.debug("Forcing a rescan for \"%s\"" % videofile)
                     db_result = None
 
                 if db_result is None:
-                    sucess = ffmpeg_no_errors(videofile)
-                    if md5sum is None:
-                        md5sum = self.calculate_md5(videofile, bar)
-                    self.store_result_to_db(videofile, md5sum, sucess)
-                    return (videofile, sucess)
+                    result = ffmpeg_scan(videofile)
+                    if filehash is None:
+                        filehash = checksum(videofile, bar=bar)
+                    self.store_result_to_db(videofile, filehash, result.success)
+                    return (videofile, result.success)
                 else:
                     log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
                     return (videofile, db_result)
@@ -133,8 +108,12 @@ class App:
             import traceback
             traceback.print_exc()
 
-    def scan(self, videodir, force=False):
+    def scan(self, videodir):
         """Scan videofiles in videodir recursively. Ignore existing results if force is set"""
+
+        if isfile(videodir):
+            print(ffmpeg_scan(videodir))
+            return
 
         chdir(videodir)
         vfiles = self.find_video_files(".")
@@ -162,6 +141,10 @@ class App:
 
     def rescan(self, videodir):
         """Rescan all files in videodir that have a previous status of FAILED"""
+        if isfile(videodir):
+            print(ffmpeg_scan(videodir))
+            return
+
         chdir(videodir)
         vfiles = self.find_video_files(".")
 
@@ -175,17 +158,27 @@ class App:
         self.scan(videodir)
 
     def show(self):
-        print("Broken Files:")
+        log.info("Broken Files:")
+        n_broken = 0
+        n_ok = 0
         for _, entry in self.db.get_all():
             if(entry["status"] is False):
-                print(entry["videofile"])
+                log.info(entry["videofile"])
+                n_broken += 1
+            else:
+                n_ok += 1
+
+        log.info("Found issues with %s/%s files (%.1f%%)" % (n_broken, n_broken + n_ok, 100 * float(n_broken) / (n_broken + n_ok)))
 
 
 def cli():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="command", help='Command', dest="command")
-    scanning_parsers = subparsers.add_parser("scan"), subparsers.add_parser("rescan")
-    all_parsers = *scanning_parsers, subparsers.add_parser("show")
+    scanning_parsers = [subparsers.add_parser("scan"),
+                        subparsers.add_parser("rescan"),
+                        subparsers.add_parser("remux")]
+    all_parsers = [*scanning_parsers,
+                   subparsers.add_parser("show")]
 
     for p in scanning_parsers:
         p.add_argument('videodir', help='Directory that will be recursively scanned')
@@ -208,14 +201,17 @@ def cli():
     app = App(args)
 
     if args.command == "scan":
-        log.info("Running scan on video directory %s" % args.videodir)
+        log.info("Running scan on video(s) at %s" % args.videodir)
         app.scan(args.videodir)
     elif args.command == "rescan":
-        log.info("Running rescan on video directory %s" % args.videodir)
+        log.info("Running rescan on video(s) at %s" % args.videodir)
         app.rescan(args.videodir)
     elif args.command == "show":
         log.info("Showing results")
         app.show()
+    elif args.command == "remux":
+        log.info("Remuxing %s" % args.videodir)
+        ffmpeg_remux(file=args.videodir)
     else:
         parser.print_usage()
         exit(1)
