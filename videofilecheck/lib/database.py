@@ -6,6 +6,7 @@ import tempfile
 from shutil import move
 from threading import Lock
 import logging
+
 log = logging.getLogger(__name__)
 
 DEFAULT_CONTENT = {"files": {}}
@@ -62,14 +63,14 @@ class Database:
             log.warn("Migration: setting filesize of %s to %s" % (videofile, filesize))
             vfile["filesize"] = filesize
 
-        size_match = (filesize is None or vfile["filesize"] == filesize)
-        hash_match = (filehash is None or vfile["hash"] == filehash)
+        size_match = filesize is None or vfile["filesize"] == filesize
+        hash_match = filehash is None or vfile["hash"] == filehash
 
         if filesize is not None and vfile["filesize"] != filesize:
-            log.debug("Size mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["filesize"], filesize))
+            log.debug('Size mismatch for %s - old "%s" vs. new "%s"' % (videofile, vfile["filesize"], filesize))
 
         if filehash is not None and vfile["hash"] != filehash:
-            log.debug("Hash mismatch for %s - old \"%s\" vs. new \"%s\"" % (videofile, vfile["hash"], filehash))
+            log.debug('Hash mismatch for %s - old "%s" vs. new "%s"' % (videofile, vfile["hash"], filehash))
 
         if size_match and hash_match:
             return vfile["status"]

@@ -13,10 +13,8 @@ from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
 from .lib.checksum import checksum
 
 import logging
-logging.basicConfig(
-    format='%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+
+logging.basicConfig(format="%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger(__name__)
 
 WANTED_FILES = [".mkv", ".mp4", ".avi"]
@@ -33,8 +31,10 @@ class App:
         self.worker_ids = []
         self.lock = Lock()
 
-        log.debug("Settings: nthreads=%s dbpath=%s force_rescan=%s path_only=%s"
-                  % (self.nthreads, self.dbpath, self.force_rescan, self.path_only))
+        log.debug(
+            "Settings: nthreads=%s dbpath=%s force_rescan=%s path_only=%s"
+            % (self.nthreads, self.dbpath, self.force_rescan, self.path_only)
+        )
 
     def get_worker_idx(self):
         thread_id = get_ident()
@@ -69,11 +69,9 @@ class App:
         return videofiles
 
     def store_result_to_db(self, videofile, filehash, status):
-        entry = dict(videofile=videofile,
-                     hash=filehash,
-                     status=status,
-                     timestamp=int(time()),
-                     filesize=getsize(videofile))
+        entry = dict(
+            videofile=videofile, hash=filehash, status=status, timestamp=int(time()), filesize=getsize(videofile)
+        )
 
         self.db.set(entry)
         self.db.flush()
@@ -92,7 +90,7 @@ class App:
                 db_result = self.db.get(videofile, filehash, getsize(videofile))
 
                 if self.force_rescan:
-                    log.debug("Forcing a rescan for \"%s\"" % videofile)
+                    log.debug('Forcing a rescan for "%s"' % videofile)
                     db_result = None
 
                 if db_result is None:
@@ -102,10 +100,11 @@ class App:
                     self.store_result_to_db(videofile, filehash, result.success)
                     return (videofile, result.success)
                 else:
-                    log.debug("Found \"%s\" in db, using old status %s" % (videofile, db_result))
+                    log.debug('Found "%s" in db, using old status %s' % (videofile, db_result))
                     return (videofile, db_result)
         except Exception:
             import traceback
+
             traceback.print_exc()
 
     def scan(self, videodir):
@@ -162,33 +161,43 @@ class App:
         n_broken = 0
         n_ok = 0
         for _, entry in self.db.get_all():
-            if(entry["status"] is False):
+            if entry["status"] is False:
                 log.info(entry["videofile"])
                 n_broken += 1
             else:
                 n_ok += 1
 
-        log.info("Found issues with %s/%s files (%.1f%%)" % (n_broken, n_broken + n_ok, 100 * float(n_broken) / (n_broken + n_ok)))
+        log.info(
+            "Found issues with %s/%s files (%.1f%%)"
+            % (n_broken, n_broken + n_ok, 100 * float(n_broken) / (n_broken + n_ok))
+        )
 
 
 def cli():
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title="command", help='Command', dest="command")
-    scanning_parsers = [subparsers.add_parser("scan"),
-                        subparsers.add_parser("rescan"),
-                        subparsers.add_parser("remux")]
-    all_parsers = [*scanning_parsers,
-                   subparsers.add_parser("show")]
+    subparsers = parser.add_subparsers(title="command", help="Command", dest="command")
+    scanning_parsers = [subparsers.add_parser("scan"), subparsers.add_parser("rescan"), subparsers.add_parser("remux")]
+    all_parsers = [*scanning_parsers, subparsers.add_parser("show")]
 
     for p in scanning_parsers:
-        p.add_argument('videodir', help='Directory that will be recursively scanned')
+        p.add_argument("videodir", help="Directory that will be recursively scanned")
 
     for p in all_parsers:
-        p.add_argument("-v", "--verbose", help="log more", action='store_true')
-        p.add_argument('-n', "--nthreads", help='Number of threads to run in parallel (Default: 2)')
-        p.add_argument('-d', "--dbpath", help='Database path to use to store results (Default: ~/.vcheck.json)')
-        p.add_argument('-f', "--force-rescan", help='Rescan every file, even if it has been scanned before (Default: No)', action='store_true')
-        p.add_argument('-p', "--path-only", help='Only scan files using their path, skip hashing file content (Default: No)', action='store_true')
+        p.add_argument("-v", "--verbose", help="log more", action="store_true")
+        p.add_argument("-n", "--nthreads", help="Number of threads to run in parallel (Default: 2)")
+        p.add_argument("-d", "--dbpath", help="Database path to use to store results (Default: ~/.vcheck.json)")
+        p.add_argument(
+            "-f",
+            "--force-rescan",
+            help="Rescan every file, even if it has been scanned before (Default: No)",
+            action="store_true",
+        )
+        p.add_argument(
+            "-p",
+            "--path-only",
+            help="Only scan files using their path, skip hashing file content (Default: No)",
+            action="store_true",
+        )
 
     args = parser.parse_args()
 

@@ -5,18 +5,17 @@ import logging
 import os.path
 from os import unlink
 import shutil
+
 log = logging.getLogger(__name__)
 
 
-IGNORE_THESE_ERRORS = [
-    "Application provided invalid, non monotonically increasing dts to muxer"
-]
+IGNORE_THESE_ERRORS = ["Application provided invalid, non monotonically increasing dts to muxer"]
 
 
 class Result:
     def __init__(self, output: str):
         self.output = output
-        self.success = (len(output) == 0)
+        self.success = len(output) == 0
 
     def __str__(self):
         return "Result(success=%s, output=%s)" % (self.success, self.output)
@@ -47,7 +46,7 @@ def remove_ignored_stuff(data: str) -> str:
 
 
 def ffmpeg_scan(file: str) -> Result:
-    log.debug("Running ffmpeg for \"%s\"" % file)
+    log.debug('Running ffmpeg for "%s"' % file)
     ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", file, "-max_muxing_queue_size", "400", "-f", "null", "-"]
     output = subprocess.check_output(ffmpeg_call, stderr=subprocess.STDOUT)
     output = output.decode("utf-8")
