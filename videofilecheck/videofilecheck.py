@@ -11,6 +11,7 @@ from threading import get_ident, Lock
 from .lib.database import Database
 from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
 from .lib.checksum import checksum
+from .lib.cache import CachedFile
 
 import logging
 
@@ -82,29 +83,29 @@ class App:
 
             thread_title = "Thread #%s - %s" % (worker_idx, videofile.split("/")[-1])
             with tqdm(desc=thread_title, position=worker_idx, leave=False, disable=self.verbose) as bar:
-                if self.path_only:
-                    filehash = None
-                else:
-                    filehash = checksum(videofile, bar=bar)
+                with CachedFile(videofile, bar) as vid:
+                    if self.path_only:
+                        filehash = None
+                    else:
+                        filehash = checksum(vid.cached, bar=bar)
 
-                db_result = self.db.get(videofile, filehash, getsize(videofile))
+                    db_result = self.db.get(vid.original, filehash, getsize(videofile))
 
-                if self.force_rescan:
-                    log.debug('Forcing a rescan for "%s"' % videofile)
-                    db_result = None
+                    if self.force_rescan:
+                        log.debug('Forcing a rescan for "%s"' % vid.original)
+                        db_result = None
 
-                if db_result is None:
-                    result = ffmpeg_scan(videofile)
-                    if filehash is None:
-                        filehash = checksum(videofile, bar=bar)
-                    self.store_result_to_db(videofile, filehash, result.success)
-                    return (videofile, result.success)
-                else:
-                    log.debug('Found "%s" in db, using old status %s' % (videofile, db_result))
-                    return (videofile, db_result)
+                    if db_result is None:
+                        result = ffmpeg_scan(vid.cached)
+                        if filehash is None:
+                            filehash = checksum(vid.cached, bar=bar)
+                        self.store_result_to_db(vid.original, filehash, result.success)
+                        return (vid.original, result.success)
+                    else:
+                        log.debug('Found "%s" in db, using old status %s' % (vid.original, db_result))
+                        return (vid.original, db_result)
         except Exception:
             import traceback
-
             traceback.print_exc()
 
     def scan(self, videodir):
