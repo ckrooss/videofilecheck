@@ -30,6 +30,24 @@ class CachedFile:
 
         dst = join(SHM, basename(self.original))
         log.debug("Caching %s to %s" % (self.original, dst))
-        copyfile(self.original, dst)
+        with open(self.original, "rb") as fsrc, open(dst, "wb") as fdst:
+            if self.bar is not None:
+                fsrc.seek(0, 2)
+                filesize = fsrc.tell()
+                fsrc.seek(0)
+                self.bar.total = filesize
+                self.bar.unit = "b"
+                self.bar.unit_scale = True
+
+            while True:
+                chunk = fsrc.read(8192)
+                if self.bar is not None:
+                    self.bar.update(len(chunk))
+
+                if not chunk:
+                    break
+
+                fdst.write(chunk)
+
         self._cached = dst
         return self._cached
