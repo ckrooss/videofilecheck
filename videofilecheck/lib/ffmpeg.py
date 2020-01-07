@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from time import sleep
 import subprocess
 import logging
 import os.path
@@ -44,14 +45,44 @@ def remove_ignored_stuff(data: str) -> str:
 
     return "\n".join(wanted_output)
 
+def ffmpeg_scan(videofile: str, bar=None) -> Result:
+    log.debug('Running ffmpeg for "%s"' % videofile)
+    ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", "-", "-max_muxing_queue_size", "400", "-f", "null", "-"]
 
-def ffmpeg_scan(file: str) -> Result:
-    log.debug('Running ffmpeg for "%s"' % file)
-    ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", file, "-max_muxing_queue_size", "400", "-f", "null", "-"]
-    output = subprocess.check_output(ffmpeg_call, stderr=subprocess.STDOUT)
+    with open(videofile, "rb") as f:
+        if bar is not None:
+            f.seek(0, 2)
+            filesize = f.tell()
+            f.seek(0)
+            bar.reset(filesize)
+
+            if hasattr(bar, "desc"):
+                bar.desc = bar.desc.replace("[____]",  "[ffmpeg]")
+            bar.unit = "b"
+            bar.unit_scale = True
+
+        proc = subprocess.Popen(ffmpeg_call, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        while True:
+            chunk = f.read(32 * 1024)
+
+            if not chunk:
+                break
+
+            proc.stdin.write(chunk)
+
+            if bar is not None:
+                bar.update(len(chunk))
+                bar.refresh()
+
+    output, _ = proc.communicate()
     output = output.decode("utf-8")
     output = remove_ignored_stuff(output)
     output = output.strip()
+
+    if bar is not None:
+        if hasattr(bar, "desc"):
+            bar.desc = bar.desc.replace("[ffmpeg]", "[____]")
 
     # If the error-string length is 0, there are no errors
     return Result(output)

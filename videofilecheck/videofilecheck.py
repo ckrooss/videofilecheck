@@ -81,7 +81,7 @@ class App:
         try:
             worker_idx = self.get_worker_idx()
 
-            thread_title = "Thread #%s - %s" % (worker_idx, videofile.split("/")[-1])
+            thread_title = "Thread #%s - %s [____]" % (worker_idx, videofile.split("/")[-1])
             with tqdm(desc=thread_title, position=worker_idx, leave=False, disable=self.verbose) as bar:
                 with CachedFile(videofile, bar) as vid:
                     if self.path_only:
@@ -96,7 +96,7 @@ class App:
                         db_result = None
 
                     if db_result is None:
-                        result = ffmpeg_scan(vid.cached)
+                        result = ffmpeg_scan(vid.cached, bar)
                         if filehash is None:
                             filehash = checksum(vid.cached, bar=bar)
                         self.store_result_to_db(vid.original, filehash, result.success)

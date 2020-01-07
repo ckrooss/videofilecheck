@@ -35,9 +35,10 @@ class CachedFile:
                 fsrc.seek(0, 2)
                 filesize = fsrc.tell()
                 fsrc.seek(0)
-                self.bar.total = filesize
-                self.bar.n = 0
-                self.bar.desc += "[cache]"
+                self.bar.reset(filesize)
+
+                if hasattr(self.bar, "desc"):
+                    self.bar.desc = self.bar.desc.replace("[____]", "[cache]")
                 self.bar.unit = "b"
                 self.bar.unit_scale = True
 
@@ -50,6 +51,9 @@ class CachedFile:
                     break
 
                 fdst.write(chunk)
+
+        if self.bar is not None and hasattr(self.bar, "desc"):
+            self.bar.desc = self.bar.desc.replace("[cache]", "[____]")
 
         self._cached = dst
         return self._cached

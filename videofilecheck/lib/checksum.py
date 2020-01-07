@@ -15,9 +15,10 @@ def checksum(file, bar=None, algorithm=hashlib.md5):
             f.seek(0, 2)
             filesize = f.tell()
             f.seek(0)
-            bar.total = filesize
-            bar.n = 0
-            bar.desc = bar.desc + "[md5]"
+            bar.reset(filesize)
+
+            if hasattr(bar, "desc"):
+                bar.desc = bar.desc.replace("[____]", "[%s]" % file_hash.name)
             bar.unit = "b"
             bar.unit_scale = True
 
@@ -30,6 +31,9 @@ def checksum(file, bar=None, algorithm=hashlib.md5):
                 break
 
             file_hash.update(chunk)
+
+    if bar is not None and hasattr(bar, "desc"):
+        bar.desc = bar.desc.replace("[%s]" % file_hash.name, "[____]")
 
     hexdigest = file_hash.hexdigest()
     log.debug("Hash of %s is %s" % (file, hexdigest))
