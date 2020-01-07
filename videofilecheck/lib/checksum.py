@@ -16,6 +16,8 @@ def checksum(file, bar=None, algorithm=hashlib.md5):
             filesize = f.tell()
             f.seek(0)
             bar.total = filesize
+            bar.n = 0
+            bar.desc = bar.desc + "[md5]"
             bar.unit = "b"
             bar.unit_scale = True
 

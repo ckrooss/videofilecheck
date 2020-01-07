@@ -36,6 +36,8 @@ class CachedFile:
                 filesize = fsrc.tell()
                 fsrc.seek(0)
                 self.bar.total = filesize
+                self.bar.n = 0
+                self.bar.desc += "[cache]"
                 self.bar.unit = "b"
                 self.bar.unit_scale = True
 
