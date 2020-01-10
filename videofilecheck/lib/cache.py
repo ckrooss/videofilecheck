@@ -4,6 +4,7 @@ from shutil import copyfile
 from os.path import join, basename
 from os import unlink
 import logging
+from videofilecheck.lib.util import SubBar
 log = logging.getLogger(__name__)
 
 SHM = "/dev/shm"
@@ -30,30 +31,15 @@ class CachedFile:
 
         dst = join(SHM, basename(self.original))
         log.debug("Caching %s to %s" % (self.original, dst))
-        with open(self.original, "rb") as fsrc, open(dst, "wb") as fdst:
-            if self.bar is not None:
-                fsrc.seek(0, 2)
-                filesize = fsrc.tell()
-                fsrc.seek(0)
-                self.bar.reset(filesize)
-
-                if hasattr(self.bar, "desc"):
-                    self.bar.desc = self.bar.desc.replace("[____]", "[cache]")
-                self.bar.unit = "b"
-                self.bar.unit_scale = True
-
+        with open(self.original, "rb") as fsrc, open(dst, "wb") as fdst, SubBar(fsrc, self.bar, "cache", "b") as _bar:
             while True:
                 chunk = fsrc.read(8192)
-                if self.bar is not None:
-                    self.bar.update(len(chunk))
 
                 if not chunk:
                     break
 
+                _bar.update(len(chunk))
                 fdst.write(chunk)
-
-        if self.bar is not None and hasattr(self.bar, "desc"):
-            self.bar.desc = self.bar.desc.replace("[cache]", "[____]")
 
         self._cached = dst
         return self._cached

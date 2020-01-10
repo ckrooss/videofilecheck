@@ -6,6 +6,7 @@ import logging
 import os.path
 from os import unlink
 import shutil
+from videofilecheck.lib.util import SubBar
 
 log = logging.getLogger(__name__)
 
@@ -45,22 +46,12 @@ def remove_ignored_stuff(data: str) -> str:
 
     return "\n".join(wanted_output)
 
+
 def ffmpeg_scan(videofile: str, bar=None) -> Result:
     log.debug('Running ffmpeg for "%s"' % videofile)
     ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", "-", "-max_muxing_queue_size", "400", "-f", "null", "-"]
 
-    with open(videofile, "rb") as f:
-        if bar is not None:
-            f.seek(0, 2)
-            filesize = f.tell()
-            f.seek(0)
-            bar.reset(filesize)
-
-            if hasattr(bar, "desc"):
-                bar.desc = bar.desc.replace("[____]",  "[ffmpeg]")
-            bar.unit = "b"
-            bar.unit_scale = True
-
+    with open(videofile, "rb") as f, SubBar(f, bar, "ffmpeg", "b") as _bar:
         proc = subprocess.Popen(ffmpeg_call, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         while True:
@@ -71,18 +62,13 @@ def ffmpeg_scan(videofile: str, bar=None) -> Result:
 
             proc.stdin.write(chunk)
 
-            if bar is not None:
-                bar.update(len(chunk))
-                bar.refresh()
+            _bar.update(len(chunk))
+            _bar.refresh()
 
     output, _ = proc.communicate()
     output = output.decode("utf-8")
     output = remove_ignored_stuff(output)
     output = output.strip()
-
-    if bar is not None:
-        if hasattr(bar, "desc"):
-            bar.desc = bar.desc.replace("[ffmpeg]", "[____]")
 
     # If the error-string length is 0, there are no errors
     return Result(output)

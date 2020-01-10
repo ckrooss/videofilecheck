@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from time import time, sleep
-from os import walk, chdir
+from os import walk, chdir, nice
 from os.path import join, expanduser, relpath, abspath, getsize, isfile
 from concurrent.futures import ThreadPoolExecutor as Executor, as_completed
 import argparse
@@ -59,7 +59,7 @@ class App:
 
             idx = 0
             while idx < len(subdirs):
-                if subdirs[idx].startswith("@"):
+                if subdirs[idx].startswith("@") or subdirs[idx].startswith(".Trash"):
                     subdirs.remove(subdirs[idx])
                     idx = 0
                 else:
@@ -69,9 +69,11 @@ class App:
         videofiles = sorted([relpath(p, rootdir) for p in videofiles])
         return videofiles
 
-    def store_result_to_db(self, videofile, filehash, status):
+    def store_result_to_db(self, videofile, filehash, result):
+        # limit result to 10 lines of output
+        out_lines = "\n".join(result.output.splitlines()[:10])
         entry = dict(
-            videofile=videofile, hash=filehash, status=status, timestamp=int(time()), filesize=getsize(videofile)
+            videofile=videofile, hash=filehash, status=result.success, timestamp=int(time()), filesize=getsize(videofile), output=out_lines
         )
 
         self.db.set(entry)
@@ -81,8 +83,10 @@ class App:
         try:
             worker_idx = self.get_worker_idx()
 
-            thread_title = "Thread #%s - %s [____]" % (worker_idx, videofile.split("/")[-1])
-            with tqdm(desc=thread_title, position=worker_idx, leave=False, disable=self.verbose) as bar:
+            thread_title = "Thread #%s - %50.50s" % (worker_idx, videofile.split("/")[-1])
+            with tqdm(position=worker_idx, leave=False, disable=self.verbose) as bar:
+                bar.desc = thread_title
+
                 with CachedFile(videofile, bar) as vid:
                     if self.path_only:
                         filehash = None
@@ -99,7 +103,12 @@ class App:
                         result = ffmpeg_scan(vid.cached, bar)
                         if filehash is None:
                             filehash = checksum(vid.cached, bar=bar)
-                        self.store_result_to_db(vid.original, filehash, result.success)
+
+                        if result.success:
+                            bar.write("%s - OK" % vid.original)
+                        else:
+                            bar.write("%s - FAIL" % vid.original)
+                        self.store_result_to_db(vid.original, filehash, result)
                         return (vid.original, result.success)
                     else:
                         log.debug('Found "%s" in db, using old status %s' % (vid.original, db_result))
@@ -112,8 +121,9 @@ class App:
         """Scan videofiles in videodir recursively. Ignore existing results if force is set"""
 
         if isfile(videodir):
-            print(ffmpeg_scan(videodir))
-            return
+            with tqdm(disable=self.verbose) as bar:
+                print(ffmpeg_scan(videodir, bar))
+                return
 
         chdir(videodir)
         vfiles = self.find_video_files(".")
@@ -161,9 +171,12 @@ class App:
         log.info("Broken Files:")
         n_broken = 0
         n_ok = 0
-        for _, entry in self.db.get_all():
+        for _, entry in sorted(self.db.get_all()):
             if entry["status"] is False:
                 log.info(entry["videofile"])
+                if "output" in entry:
+                    for l in entry["output"].splitlines():
+                        log.info("> " + l)
                 n_broken += 1
             else:
                 n_ok += 1
@@ -175,6 +188,7 @@ class App:
 
 
 def cli():
+    nice(15)
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="command", help="Command", dest="command")
     scanning_parsers = [subparsers.add_parser("scan"), subparsers.add_parser("rescan"), subparsers.add_parser("remux")]
