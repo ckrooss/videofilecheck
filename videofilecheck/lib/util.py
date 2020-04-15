@@ -1,26 +1,5 @@
-"""class FakeBar:
-    def __init__(self):
-        self.desc = ""
-        self.unit = None
-        self.unit_scale = None
-        self.value = 0
-
-    def reset(self, n=0):
-        self.total = n
-
-    def update(self, n=1):
-        self.value += n
-
-    def refresh(self, *args):
-        pass
-"""
-
-
 class SubBar:
     def __init__(self, it, bar, name, unit):
-        """if bar is None or bar.disable:
-            bar = FakeBar()"""
-
         self.bar = bar
         iterlen = 0
         try:

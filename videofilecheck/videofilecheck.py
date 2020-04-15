@@ -12,11 +12,16 @@ from .lib.database import Database
 from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
 from .lib.checksum import checksum
 from .lib.cache import CachedFile, UnCachedFile
+from .lib.tqdmlog import TqdmHandler
 
 import logging
 
-logging.basicConfig(format="%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-log = logging.getLogger(__name__)
+formatter = logging.Formatter(fmt="%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s",
+                              datefmt="%Y-%m-%d %H:%M:%S")
+handler = TqdmHandler(logging.NOTSET)
+handler.setFormatter(formatter)
+log = logging.getLogger("videofilecheck")
+log.addHandler(handler)
 
 WANTED_FILES = [".mkv", ".mp4", ".avi"]
 
@@ -84,7 +89,8 @@ class App:
             worker_idx = self.get_worker_idx()
 
             thread_title = "Thread #%s - %50.50s" % (worker_idx, videofile.split("/")[-1])
-            with tqdm(position=worker_idx, leave=False, disable=self.verbose) as bar:
+            with tqdm(position=worker_idx, leave=False) as bar:
+
                 bar.desc = thread_title
 
                 with CachedFile(videofile, bar) as vid:
@@ -105,9 +111,9 @@ class App:
                             filehash = checksum(vid.cached, bar=bar)
 
                         if result.success:
-                            bar.write("%s - OK" % vid.original)
+                            log.info("%s - OK" % vid.original)
                         else:
-                            bar.write("%s - FAIL" % vid.original)
+                            log.info("%s - FAIL" % vid.original)
                         self.store_result_to_db(vid.original, filehash, result)
                         return (vid.original, result.success)
                     else:
@@ -121,7 +127,7 @@ class App:
         """Scan videofiles in videodir recursively. Ignore existing results if force is set"""
 
         if isfile(videodir):
-            with tqdm(disable=self.verbose) as bar:
+            with tqdm() as bar:
                 print(ffmpeg_scan(videodir, bar))
                 return
 
@@ -134,7 +140,7 @@ class App:
 
             failed = []
 
-            for future in tqdm(as_completed(futures), total=len(vfiles), disable=self.verbose, unit="file"):
+            for future in tqdm(as_completed(futures), total=len(vfiles), unit="file"):
                 sleep(0.001)  # TQDM doesnt update without a very short sleep :/
                 if future.exception() is not None:
                     log.error(future.exception())
