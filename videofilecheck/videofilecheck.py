@@ -11,7 +11,7 @@ from threading import get_ident, Lock
 from .lib.database import Database
 from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
 from .lib.checksum import checksum
-from .lib.cache import CachedFile
+from .lib.cache import CachedFile, UnCachedFile
 
 import logging
 

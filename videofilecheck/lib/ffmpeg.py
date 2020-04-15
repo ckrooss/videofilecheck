@@ -7,6 +7,7 @@ import os.path
 from os import unlink
 import shutil
 from videofilecheck.lib.util import SubBar
+from threading import Thread, Event
 
 log = logging.getLogger(__name__)
 
@@ -47,28 +48,59 @@ def remove_ignored_stuff(data: str) -> str:
     return "\n".join(wanted_output)
 
 
+def watchdog(f, proc, done):
+    try:
+        stuck_counter = 0
+        previous_progress = 0
+        while not done.is_set():
+            sleep(1)
+            if f.tell() == previous_progress:
+                stuck_counter += 1
+
+            if stuck_counter > 5:
+                log.error("Killing stuck process")
+                proc.terminate()
+
+            previous_progress = f.tell()
+    except ValueError:
+        return
+
+
 def ffmpeg_scan(videofile: str, bar=None) -> Result:
-    log.debug('Running ffmpeg for "%s"' % videofile)
-    ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", "-", "-max_muxing_queue_size", "400", "-f", "null", "-"]
+    try:
+        log.debug('Running ffmpeg for "%s"' % videofile)
+        ffmpeg_call = ["ffmpeg", "-loglevel", "error", "-i", "-", "-max_muxing_queue_size", "1800", "-f", "null", "-"]
 
-    with open(videofile, "rb") as f, SubBar(f, bar, "ffmpeg", "b") as _bar:
-        proc = subprocess.Popen(ffmpeg_call, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        with open(videofile, "rb") as f, SubBar(f, bar, "ffmpeg", "b") as _bar:
+            proc = subprocess.Popen(ffmpeg_call, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-        while True:
-            chunk = f.read(32 * 1024)
+            done = Event()
+            t = Thread(target=watchdog, args=(f, proc, done))
+            t.start()
 
-            if not chunk:
-                break
+            while True:
+                chunk = f.read(32 * 1024)
 
-            proc.stdin.write(chunk)
+                if not chunk:
+                    break
 
-            _bar.update(len(chunk))
-            _bar.refresh()
+                proc.stdin.write(chunk)
 
-    output, _ = proc.communicate()
-    output = output.decode("utf-8")
-    output = remove_ignored_stuff(output)
-    output = output.strip()
+                _bar.update(len(chunk))
+                _bar.refresh()
+
+            done.set()
+            t.join()
+
+        output, _ = proc.communicate()
+        output = output.decode("utf-8")
+        output = remove_ignored_stuff(output)
+        output = output.strip()
+    except Exception as e:
+        output = str(e)
+
+    if t and t.is_alive():
+        t.join()
 
     # If the error-string length is 0, there are no errors
     return Result(output)

@@ -10,6 +10,23 @@ log = logging.getLogger(__name__)
 SHM = "/dev/shm"
 
 
+class UnCachedFile:
+    def __enter__(self):
+        return self
+
+    def __init__(self, src: str, bar=None):
+        self.original = src
+        self._cached = src
+        self.bar = bar
+
+    def __exit__(self, *exc):
+        pass
+
+    @property
+    def cached(self):
+        return self._cached
+
+
 class CachedFile:
     def __enter__(self):
         return self
