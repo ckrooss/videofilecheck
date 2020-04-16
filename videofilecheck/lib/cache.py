@@ -34,7 +34,7 @@ class CacheLocation():
         else:
             vfs_stat = statvfs(self.path)
             fs_available = vfs_stat.f_frsize * vfs_stat.f_bavail
-            log.warn("%s path total size %d, usage %d" % (self, fs_available, self.usage))
+            log.debug("%s path total size %d, usage %d" % (self, fs_available, self.usage))
 
             return fs_available - self.usage
 
@@ -87,7 +87,7 @@ class CachedFile:
         if self._cached is not None and self.do_delete:
             assert any(self._cached.startswith(cachedir.path) for cachedir in CACHEDIRS)
             unlink(self._cached)
-            log.error("Deleting %s" % self._cached)
+            log.debug("Deleting %s" % self._cached)
 
             self.cachedir.free(self.size)
 
@@ -98,7 +98,7 @@ class CachedFile:
 
         for cachedir in CACHEDIRS:
             if not cachedir.reserve(self.size):
-                log.warning("Not enough space on %s for %s" % (cachedir, self.original))
+                log.debug("Not enough space on %s for %s" % (cachedir, self.original))
                 continue
 
             self.cachedir = cachedir
