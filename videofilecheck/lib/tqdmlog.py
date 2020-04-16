@@ -5,6 +5,11 @@ import tqdm
 
 
 class TqdmHandler(logging.Handler):
+    """
+    Use tqdm.write for logging:
+    Allows python logging to work without glitches while a tqdm progress bar is visible
+    """
+
     def emit(self, record):
         try:
             msg = self.format(record)

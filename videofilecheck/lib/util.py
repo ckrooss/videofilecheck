@@ -1,4 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+
 class SubBar:
+    """
+    ContextManager to create a sub-progressbar from bar:
+    - temporarily change the description to the new name
+    - set it to the original name after exiting
+    """
+
     def __init__(self, it, bar, name, unit):
         self.bar = bar
         iterlen = 0

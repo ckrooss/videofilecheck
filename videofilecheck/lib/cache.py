@@ -14,6 +14,12 @@ class CacheException(Exception):
 
 
 class CacheLocation():
+    """
+    Handle the available space for a given cache-location
+    As multiple threads use the same cache, space is immediately "reserved" so that a 1GB cache
+    cannot be used by 3x500MB threads at the same time
+    """
+
     def __init__(self, path):
         self.usage = 0
         self.lock = Lock()
@@ -27,6 +33,11 @@ class CacheLocation():
             self.usage += size
             return True
 
+    def free(self, size):
+        with self.lock:
+            self.usage -= size
+            assert self.usage >= 0
+
     def __available(self):
         if not exists(self.path):
             log.warn("%s path does not exist" % self)
@@ -38,23 +49,22 @@ class CacheLocation():
 
             return fs_available - self.usage
 
-    def free(self, size):
-        with self.lock:
-            self.usage -= size
-            assert self.usage >= 0
-
     def __str__(self):
         return "Cache(path=%s)" % self.path
 
     def __repr__(self):
         return str(self)
 
-CACHEDIRS = [CacheLocation("/dev/shm"),
-             CacheLocation("~/vcheck_cache/")
-            ]
+
+CACHEDIRS = [
+    CacheLocation("/dev/shm"),
+    CacheLocation("~/vcheck_cache/")
+]
 
 
 class UnCachedFile:
+    """Same interface as CachedFile without actually doing the caching"""
+
     def __enter__(self):
         return self
 
@@ -72,11 +82,23 @@ class UnCachedFile:
 
 
 class CachedFile:
+    """
+    Context manager to access a file that needs to be read multiple times
+    Upon entering, the file is copied to a fast location, e.g. RAM
+    On exit, the cache is deleted
+
+    When not enough space is available in RAM, other locations  (SSD) are used
+    """
+
     def __enter__(self):
         return self
 
     def __init__(self, src: str, bar=None):
+
+        # File path of the original file, or example in the library
         self.original = src
+
+        # File path of the cached file, for example in /tmp. If this is None, no cached file exists
         self._cached = None
         self.bar = bar
         self.cachedir = None
