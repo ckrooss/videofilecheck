@@ -29,7 +29,7 @@ WANTED_FILES = [".mkv", ".mp4", ".avi"]
 class App:
     def __init__(self, config):
         self.nthreads = int(config.nthreads) if config.nthreads is not None else 2
-        self.dbpath = abspath(expanduser(config.dbpath) if config.dbpath is not None else expanduser("~/.vcheck.json"))
+        self.dbpath = abspath(expanduser(config.dbpath))
         self.db = Database(self.dbpath)
         self.force_rescan = config.force_rescan if config.force_rescan is not None else False
         self.path_only = config.path_only if config.path_only is not None else False
@@ -192,12 +192,33 @@ class App:
             % (n_broken, n_broken + n_ok, 100 * float(n_broken) / (n_broken + n_ok))
         )
 
+    def prune(self, videodir):
+        """Remove files from the database that no longer exist in the videodir"""
+        chdir(videodir)
+        vfiles = self.find_video_files(".")
+        log.debug("Found %s videofiles in total" % len(vfiles))
+
+        # Get a list of files that don't exist anymore
+        # Have to copy the strings, we can't delete from the db while iterating over it
+        orphan_files = list(map(lambda p: p[0], filter(lambda p: p[0] not in vfiles, self.db.get_all())))
+
+        for orphan in orphan_files:
+            log.info("Deleting %s" % orphan)
+            self.db.delete(orphan)
+
+        log.info("Deleted %s files from the database" % len(orphan_files))
+
+        self.db.flush()
+
 
 def cli():
     nice(15)
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="command", help="Command", dest="command")
-    scanning_parsers = [subparsers.add_parser("scan"), subparsers.add_parser("rescan"), subparsers.add_parser("remux")]
+    scanning_parsers = [subparsers.add_parser("scan"),
+                        subparsers.add_parser("rescan"),
+                        subparsers.add_parser("remux"),
+                        subparsers.add_parser("prune")]
     all_parsers = [*scanning_parsers, subparsers.add_parser("show")]
 
     for p in scanning_parsers:
@@ -206,7 +227,7 @@ def cli():
     for p in all_parsers:
         p.add_argument("-v", "--verbose", help="log more", action="store_true")
         p.add_argument("-n", "--nthreads", help="Number of threads to run in parallel (Default: 2)")
-        p.add_argument("-d", "--dbpath", help="Database path to use to store results (Default: ~/.vcheck.json)")
+        p.add_argument("-d", "--dbpath", help="Database path to use to store results (Default: ~/.vcheck.json)", default="~/.vcheck.json")
         p.add_argument(
             "-f",
             "--force-rescan",
@@ -242,6 +263,9 @@ def cli():
     elif args.command == "remux":
         log.info("Remuxing %s" % args.videodir)
         ffmpeg_remux(file=args.videodir)
+    elif args.command == "prune":
+        log.info("Pruning database %s using directory %s" % (args.dbpath, args.videodir))
+        app.prune(args.videodir)
     else:
         parser.print_usage()
         exit(1)
