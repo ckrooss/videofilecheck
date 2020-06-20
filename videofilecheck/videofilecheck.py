@@ -13,6 +13,7 @@ from .lib.ffmpeg import ffmpeg_scan, ffmpeg_remux
 from .lib.checksum import checksum
 from .lib.cache import CachedFile, UnCachedFile
 from .lib.tqdmlog import TqdmHandler
+from .lib.util import bcolors
 
 import logging
 
@@ -111,9 +112,9 @@ class App:
                             filehash = checksum(vid.cached, bar=bar)
 
                         if result.success:
-                            log.info("%s - OK" % vid.original)
+                            log.info("%s - %sOK%s" % (vid.original, bcolors.OKGREEN, bcolors.ENDC))
                         else:
-                            log.info("%s - FAIL" % vid.original)
+                            log.info("%s - %sFAIL%s" % (vid.original, bcolors.FAIL, bcolors.ENDC))
                         self.store_result_to_db(vid.original, filehash, result)
                         return (vid.original, result.success)
                     else:
