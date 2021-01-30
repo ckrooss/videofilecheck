@@ -211,6 +211,19 @@ class App:
 
         self.db.flush()
 
+    def find_zeroes(self, videodir):
+        chdir(videodir)
+        vfiles = self.find_video_files(".")
+
+        for vfile in vfiles:
+            with open(vfile, "rb") as f:
+                chunk = f.read(1024)
+                for b in chunk:
+                    if b != 0x0:
+                        print(" OK " + vfile)
+                        break
+                else:
+                    print("ERR " + vfile)
 
 def cli():
     nice(15)
@@ -219,7 +232,8 @@ def cli():
     scanning_parsers = [subparsers.add_parser("scan"),
                         subparsers.add_parser("rescan"),
                         subparsers.add_parser("remux"),
-                        subparsers.add_parser("prune")]
+                        subparsers.add_parser("prune"),
+                        subparsers.add_parser("zero")]
     all_parsers = [*scanning_parsers, subparsers.add_parser("show")]
 
     for p in scanning_parsers:
@@ -267,6 +281,8 @@ def cli():
     elif args.command == "prune":
         log.info("Pruning database %s using directory %s" % (args.dbpath, args.videodir))
         app.prune(args.videodir)
+    elif args.command == "zero":
+        app.find_zeroes(args.videodir)
     else:
         parser.print_usage()
         exit(1)
